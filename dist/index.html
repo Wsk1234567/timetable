@@ -64,13 +64,15 @@
         font-size: 0.82rem;
       }
       .term {
-        border-left: 1px solid var(--line);
-        padding-left: 16px;
+        background: var(--navy);
+        color: #fff;
+        border-radius: 11px;
+        padding: 7px 11px;
         white-space: nowrap;
       }
       .term small {
         display: block;
-        color: var(--muted);
+        color: #c9d2ec;
         font-size: 0.78rem;
         margin-bottom: 2px;
       }
@@ -81,7 +83,7 @@
         display: flex;
         align-items: center;
         justify-content: flex-end;
-        gap: 18px;
+        gap: 8px;
         min-width: 0;
       }
       .next-inline {
@@ -90,6 +92,10 @@
         align-items: baseline;
         column-gap: 9px;
         min-width: 0;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        padding: 6px 10px;
       }
       .next-inline small {
         color: var(--muted);
@@ -109,9 +115,14 @@
         white-space: nowrap;
       }
       .meta {
-        color: var(--muted);
+        color: var(--ink);
         font-size: 0.8rem;
+        font-weight: 700;
         white-space: nowrap;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        padding: 9px 11px;
       }
       .controls {
         display: flex;
@@ -304,7 +315,7 @@
         opacity: 0.74;
       }
       .class-card .room {
-        display: none;
+        display: block;
         font-size: 0.72rem;
         margin-top: 6px;
         line-height: 1.25;
@@ -347,6 +358,15 @@
       }
       .fit-tight .class-card .kind {
         display: none;
+      }
+      .fit-tight .class-card .room {
+        display: block;
+        margin-top: 2px;
+        font-size: 0.6rem;
+        line-height: 1.05;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .now {
         position: absolute;
