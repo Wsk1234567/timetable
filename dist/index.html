@@ -158,6 +158,39 @@
         font-size: 0.85rem;
         white-space: nowrap;
       }
+      .schedule-tools {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .week-label {
+        min-width: 132px;
+        text-align: center;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .tool-btn {
+        min-height: 32px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 5px 9px;
+        background: var(--paper);
+        color: var(--ink);
+        cursor: pointer;
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+      .tool-btn.add {
+        background: var(--blue);
+        border-color: var(--blue);
+        color: #fff;
+      }
+      .tool-btn:focus-visible,
+      .activity-card:focus-visible {
+        outline: 3px solid rgba(82, 109, 226, 0.28);
+        outline-offset: 2px;
+      }
       .schedule-wrap {
         background: var(--paper);
         border: 1px solid var(--line);
@@ -368,6 +401,41 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .activity-card {
+        position: absolute;
+        z-index: 5;
+        border: 1px solid #e07061;
+        border-left: 5px solid #e35f4d;
+        border-radius: 9px;
+        padding: 5px 7px;
+        background: #ffe5df;
+        color: var(--ink);
+        text-align: left;
+        overflow: hidden;
+        cursor: pointer;
+      }
+      .activity-card strong,
+      .activity-card span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .activity-card strong {
+        font-size: 0.75rem;
+        line-height: 1.15;
+      }
+      .activity-card span {
+        margin-top: 2px;
+        font-size: 0.62rem;
+        color: #87524a;
+      }
+      .fit-tight .activity-card {
+        padding: 3px 5px;
+      }
+      .fit-tight .activity-card span {
+        display: none;
+      }
       .now {
         position: absolute;
         left: 0;
@@ -465,6 +533,52 @@
         font-size: 0.85rem;
         line-height: 1.55;
       }
+      .activity-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 20px;
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+      .field.full {
+        grid-column: 1/-1;
+      }
+      .field label {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+      .field input {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 11px;
+        background: #fff;
+        color: var(--ink);
+      }
+      .field input:focus {
+        outline: 3px solid rgba(82, 109, 226, 0.18);
+        border-color: var(--blue);
+      }
+      .form-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 18px;
+      }
+      .form-actions .delete {
+        margin-right: auto;
+        display: none;
+        color: #b84335;
+        border-color: #efc1ba;
+      }
+      .editing .form-actions .delete {
+        display: inline-flex;
+      }
       @media (max-width: 800px) {
         .app {
           padding: 10px 10px 18px;
@@ -485,6 +599,11 @@
         .controls {
           align-items: flex-start;
           flex-direction: column;
+        }
+        .schedule-tools {
+          width: 100%;
+          overflow-x: auto;
+          padding-bottom: 2px;
         }
         .legend {
           width: 100%;
@@ -525,6 +644,12 @@
         .details {
           grid-template-columns: 1fr;
         }
+        .activity-form {
+          grid-template-columns: 1fr;
+        }
+        .field.full {
+          grid-column: auto;
+        }
         .detail.full {
           grid-column: auto;
         }
@@ -560,7 +685,13 @@
       </header>
       <div class="controls">
         <div class="legend" id="legend"></div>
-        <div class="hint">横向滑动可查看整周 · 课程时间为马来西亚时间</div>
+        <div class="schedule-tools">
+          <button class="tool-btn" id="prevWeek" aria-label="上一周">‹</button>
+          <strong class="week-label" id="weekLabel"></strong>
+          <button class="tool-btn" id="nextWeek" aria-label="下一周">›</button>
+          <button class="tool-btn" id="todayWeek">本周</button>
+          <button class="tool-btn add" id="addActivity">＋ 添加活动</button>
+        </div>
       </div>
       <section class="schedule-wrap" aria-label="每周课程时间表">
         <div class="scroll" id="scroll">
@@ -606,25 +737,92 @@
         </p>
       </div>
     </dialog>
+    <dialog id="activityDialog">
+      <form class="modal" id="activityForm">
+        <div class="modal-top">
+          <div>
+            <div class="modal-code">个人安排</div>
+            <h2 id="activityModalTitle">添加活动</h2>
+          </div>
+          <button
+            class="close"
+            type="button"
+            id="closeActivity"
+            aria-label="关闭"
+          >
+            ×
+          </button>
+        </div>
+        <div class="activity-form">
+          <div class="field full">
+            <label for="activityTitle">活动名称</label>
+            <input
+              id="activityTitle"
+              name="title"
+              required
+              maxlength="50"
+              placeholder="例如：小组讨论"
+            />
+          </div>
+          <div class="field full">
+            <label for="activityDate">日期</label>
+            <input id="activityDate" name="date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="activityStart">开始时间</label>
+            <input
+              id="activityStart"
+              name="start"
+              type="time"
+              min="05:00"
+              max="23:59"
+              step="300"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="activityEnd">结束时间</label>
+            <input
+              id="activityEnd"
+              name="end"
+              type="time"
+              min="05:00"
+              max="23:59"
+              step="300"
+              required
+            />
+          </div>
+          <div class="field full">
+            <label for="activityLocation">地点（可不填）</label>
+            <input
+              id="activityLocation"
+              name="location"
+              maxlength="60"
+              placeholder="例如：Library Discussion Room"
+            />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="tool-btn delete" type="button" id="deleteActivity">
+            删除
+          </button>
+          <button class="tool-btn" type="button" id="cancelActivity">
+            取消
+          </button>
+          <button class="tool-btn add" type="submit">保存活动</button>
+        </div>
+      </form>
+    </dialog>
     <script>
       const DAYS = [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
-        DATES = [
-          "Nov 23",
-          "Nov 24",
-          "Nov 25",
-          "Nov 26",
-          "Nov 27",
-          "Nov 28",
-          "Nov 29",
-        ];
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ];
       const courses = {
         CS6214: {
           fullCode: "C CS6214",
@@ -770,11 +968,51 @@
         },
       ];
       let selected = "ALL";
+      let weekOffset = 0;
+      let editingActivity = null;
+      let activities = JSON.parse(
+        localStorage.getItem("my-timetable-activities") || "[]",
+      );
       const $ = (s) => document.querySelector(s),
         toMin = (t) => {
           const [h, m] = t.split(":").map(Number);
           return h * 60 + m;
         };
+      const pad = (n) => String(n).padStart(2, "0");
+      function dateKey(date) {
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+      }
+      function monday(offset = weekOffset) {
+        const date = new Date();
+        date.setHours(12, 0, 0, 0);
+        date.setDate(date.getDate() - ((date.getDay() + 6) % 7) + offset * 7);
+        return date;
+      }
+      function dayDate(index) {
+        const date = monday();
+        date.setDate(date.getDate() + index);
+        return date;
+      }
+      function formatDay(date) {
+        return new Intl.DateTimeFormat("en", {
+          month: "short",
+          day: "numeric",
+        }).format(date);
+      }
+      function saveActivities() {
+        localStorage.setItem(
+          "my-timetable-activities",
+          JSON.stringify(activities),
+        );
+      }
+      function overlaps(a, b) {
+        return toMin(a.start) < toMin(b.end) && toMin(a.end) > toMin(b.start);
+      }
+      function escapeHtml(value) {
+        const node = document.createElement("div");
+        node.textContent = value || "";
+        return node.innerHTML;
+      }
       function renderLegend() {
         const keys = ["ALL", ...Object.keys(courses)];
         $("#legend").innerHTML = keys
@@ -794,6 +1032,10 @@
       }
       function render() {
         const now = new Date();
+        const weekStart = monday();
+        const weekEnd = dayDate(6);
+        $("#weekLabel").textContent =
+          `${formatDay(weekStart)}–${formatDay(weekEnd)}, ${weekEnd.getFullYear()}`;
         const availableHeight =
           $("#scroll").clientHeight || window.innerHeight - 142;
         const hourHeight =
@@ -804,10 +1046,11 @@
         document.body.classList.toggle("fit-tight", hourHeight < 30);
         let html =
           '<div class="corner">TIME</div>' +
-          DAYS.map(
-            (d, i) =>
-              `<div class="day-head ${(now.getDay() + 6) % 7 === i ? "today" : ""}"><span>${DATES[i]}</span><strong>${d}</strong></div>`,
-          ).join("");
+          DAYS.map((day, index) => {
+            const date = dayDate(index);
+            const isToday = dateKey(date) === dateKey(now);
+            return `<div class="day-head ${isToday ? "today" : ""}"><span>${formatDay(date)}</span><strong>${day}</strong></div>`;
+          }).join("");
         html +=
           '<div class="time-col" style="height:calc(19 * var(--hour))">' +
           Array.from(
@@ -816,16 +1059,42 @@
               `<span class="time" style="top:${i * hourHeight}px">${String((i + 5) % 24).padStart(2, "0")}:00</span>`,
           ).join("") +
           "</div>";
-        for (let d = 0; d < 7; d++) {
-          const list = classes.filter((c) => c.day === d);
-          html += `<div class="day-col" style="height:calc(19 * var(--hour))">${list.length ? "" : '<span class="empty">No class</span>'}`;
-          for (const c of list) {
-            const top = (toMin(c.start) - 300) * (hourHeight / 60),
-              height = (toMin(c.end) - toMin(c.start)) * (hourHeight / 60) - 3,
-              dim = selected !== "ALL" && selected !== c.course;
-            html += `<button class="class-card ${dim ? "dim" : ""}" aria-label="${courses[c.course].name}, ${c.kind}, ${c.start}–${c.end}" data-course="${c.course}" data-index="${classes.indexOf(c)}" style="top:${top}px;height:${height}px"><span class="code">${courses[c.course].name}</span><span class="kind">${c.kind} · ${c.start}–${c.end}</span><span class="room">${c.room}</span></button>`;
+        for (let day = 0; day < 7; day++) {
+          const list = classes.filter((courseClass) => courseClass.day === day);
+          const currentDate = dayDate(day);
+          const dateActivities = activities.filter(
+            (activity) => activity.date === dateKey(currentDate),
+          );
+          html += `<div class="day-col" style="height:calc(19 * var(--hour))">${list.length || dateActivities.length ? "" : '<span class="empty">No class</span>'}`;
+          for (const courseClass of list) {
+            const top = (toMin(courseClass.start) - 300) * (hourHeight / 60),
+              height =
+                (toMin(courseClass.end) - toMin(courseClass.start)) *
+                  (hourHeight / 60) -
+                3,
+              dim = selected !== "ALL" && selected !== courseClass.course,
+              sharesTime = dateActivities.some((activity) =>
+                overlaps(courseClass, activity),
+              );
+            html += `<button class="class-card ${dim ? "dim" : ""}" aria-label="${courses[courseClass.course].name}, ${courseClass.kind}, ${courseClass.start}–${courseClass.end}" data-course="${courseClass.course}" data-index="${classes.indexOf(courseClass)}" style="top:${top}px;height:${height}px;right:${sharesTime ? "50%" : "7px"}"><span class="code">${courses[courseClass.course].name}</span><span class="kind">${courseClass.kind} · ${courseClass.start}–${courseClass.end}</span><span class="room">${courseClass.room}</span></button>`;
           }
-          if ((now.getDay() + 6) % 7 === d && now.getHours() >= 5) {
+          for (const activity of dateActivities) {
+            const top = (toMin(activity.start) - 300) * (hourHeight / 60);
+            const height = Math.max(
+              18,
+              (toMin(activity.end) - toMin(activity.start)) *
+                (hourHeight / 60) -
+                3,
+            );
+            const sharesTime = list.some((courseClass) =>
+              overlaps(courseClass, activity),
+            );
+            const location = activity.location
+              ? ` · ${escapeHtml(activity.location)}`
+              : "";
+            html += `<button class="activity-card" data-activity-id="${activity.id}" aria-label="${escapeHtml(activity.title)}, ${activity.start}–${activity.end}${location}" style="top:${top}px;height:${height}px;left:${sharesTime ? "52%" : "7px"};right:7px"><strong>${escapeHtml(activity.title)}</strong><span>${activity.start}–${activity.end}${location}</span></button>`;
+          }
+          if (dateKey(currentDate) === dateKey(now) && now.getHours() >= 5) {
             const top =
               (now.getHours() * 60 + now.getMinutes() - 300) *
               (hourHeight / 60);
@@ -837,7 +1106,20 @@
         document
           .querySelectorAll(".class-card")
           .forEach(
-            (b) => (b.onclick = () => showDetail(classes[+b.dataset.index])),
+            (button) =>
+              (button.onclick = () =>
+                showDetail(classes[+button.dataset.index])),
+          );
+        document
+          .querySelectorAll(".activity-card")
+          .forEach(
+            (button) =>
+              (button.onclick = () =>
+                openActivity(
+                  activities.find(
+                    (activity) => activity.id === button.dataset.activityId,
+                  ),
+                )),
           );
       }
       function showDetail(c) {
@@ -852,6 +1134,37 @@
         $("#modalUnits").textContent = info.units;
         $("#modalClass").textContent = c.classNo;
         $("#detailDialog").showModal();
+      }
+      function weekOffsetForDate(value) {
+        const target = new Date(`${value}T12:00:00`);
+        const targetMonday = new Date(target);
+        targetMonday.setDate(target.getDate() - ((target.getDay() + 6) % 7));
+        return Math.round((targetMonday - monday(0)) / 604800000);
+      }
+      function openActivity(activity = null) {
+        editingActivity = activity?.id || null;
+        $("#activityForm").classList.toggle("editing", Boolean(activity));
+        $("#activityModalTitle").textContent = activity
+          ? "编辑活动"
+          : "添加活动";
+        $("#activityForm").reset();
+        const today = new Date();
+        const currentWeekContainsToday =
+          dateKey(today) >= dateKey(monday()) &&
+          dateKey(today) <= dateKey(dayDate(6));
+        $("#activityTitle").value = activity?.title || "";
+        $("#activityDate").value =
+          activity?.date ||
+          (currentWeekContainsToday ? dateKey(today) : dateKey(dayDate(0)));
+        $("#activityStart").value = activity?.start || "09:00";
+        $("#activityEnd").value = activity?.end || "10:00";
+        $("#activityLocation").value = activity?.location || "";
+        $("#activityDialog").showModal();
+        setTimeout(() => $("#activityTitle").focus(), 30);
+      }
+      function closeActivity() {
+        $("#activityDialog").close();
+        editingActivity = null;
       }
       function nextClass() {
         const now = new Date(),
@@ -870,6 +1183,63 @@
       $("#closeDialog").onclick = () => $("#detailDialog").close();
       $("#detailDialog").onclick = (e) => {
         if (e.target === $("#detailDialog")) $("#detailDialog").close();
+      };
+      $("#prevWeek").onclick = () => {
+        weekOffset -= 1;
+        render();
+      };
+      $("#nextWeek").onclick = () => {
+        weekOffset += 1;
+        render();
+      };
+      $("#todayWeek").onclick = () => {
+        weekOffset = 0;
+        render();
+      };
+      $("#addActivity").onclick = () => openActivity();
+      $("#closeActivity").onclick = closeActivity;
+      $("#cancelActivity").onclick = closeActivity;
+      $("#activityDialog").onclick = (event) => {
+        if (event.target === $("#activityDialog")) closeActivity();
+      };
+      $("#activityEnd").oninput = () => $("#activityEnd").setCustomValidity("");
+      $("#activityForm").onsubmit = (event) => {
+        event.preventDefault();
+        const data = Object.fromEntries(new FormData(event.currentTarget));
+        if (toMin(data.end) <= toMin(data.start)) {
+          $("#activityEnd").setCustomValidity("结束时间必须晚于开始时间");
+          $("#activityEnd").reportValidity();
+          return;
+        }
+        $("#activityEnd").setCustomValidity("");
+        const record = {
+          id: editingActivity || String(Date.now()),
+          title: data.title.trim(),
+          date: data.date,
+          start: data.start,
+          end: data.end,
+          location: data.location.trim(),
+        };
+        if (editingActivity) {
+          const index = activities.findIndex(
+            (activity) => activity.id === editingActivity,
+          );
+          activities[index] = record;
+        } else {
+          activities.push(record);
+        }
+        saveActivities();
+        weekOffset = weekOffsetForDate(record.date);
+        closeActivity();
+        render();
+      };
+      $("#deleteActivity").onclick = () => {
+        activities = activities.filter(
+          (activity) => activity.id !== editingActivity,
+        );
+        saveActivities();
+        closeActivity();
+        render();
       };
       renderLegend();
       render();
