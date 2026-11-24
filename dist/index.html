@@ -551,7 +551,8 @@
         font-size: 0.78rem;
         font-weight: 700;
       }
-      .field input {
+      .field input,
+      .field select {
         width: 100%;
         min-height: 42px;
         border: 1px solid var(--line);
@@ -560,9 +561,34 @@
         background: #fff;
         color: var(--ink);
       }
-      .field input:focus {
+      .field select {
+        appearance: none;
+        padding-right: 36px;
+        background-image:
+          linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+          linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+        background-position:
+          calc(100% - 17px) 18px,
+          calc(100% - 12px) 18px;
+        background-size:
+          5px 5px,
+          5px 5px;
+        background-repeat: no-repeat;
+      }
+      .field input:focus,
+      .field select:focus {
         outline: 3px solid rgba(82, 109, 226, 0.18);
         border-color: var(--blue);
+      }
+      .repeat-weeks[hidden] {
+        display: none;
+      }
+      .repeat-note {
+        grid-column: 1/-1;
+        margin: -3px 0 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.45;
       }
       .form-actions {
         display: flex;
@@ -768,6 +794,28 @@
             <label for="activityDate">日期</label>
             <input id="activityDate" name="date" type="date" required />
           </div>
+          <div class="field">
+            <label for="activityRepeat">重复</label>
+            <select id="activityRepeat" name="repeat">
+              <option value="none">不重复</option>
+              <option value="weekly">每周</option>
+            </select>
+          </div>
+          <div class="field repeat-weeks" id="repeatWeeksField" hidden>
+            <label for="activityWeeks">持续几周</label>
+            <input
+              id="activityWeeks"
+              name="weeks"
+              type="number"
+              min="2"
+              max="52"
+              value="4"
+              inputmode="numeric"
+            />
+          </div>
+          <p class="repeat-note" id="repeatNote" hidden>
+            从所选日期开始，每周同一天、同一时间自动加入。
+          </p>
           <div class="field">
             <label for="activityStart">开始时间</label>
             <input
@@ -1005,6 +1053,20 @@
           JSON.stringify(activities),
         );
       }
+      function activityGroupId(activity) {
+        return activity.seriesId || activity.id;
+      }
+      function addWeeks(value, count) {
+        const date = new Date(`${value}T12:00:00`);
+        date.setDate(date.getDate() + count * 7);
+        return dateKey(date);
+      }
+      function toggleRepeatFields() {
+        const weekly = $("#activityRepeat").value === "weekly";
+        $("#repeatWeeksField").hidden = !weekly;
+        $("#repeatNote").hidden = !weekly;
+        $("#activityWeeks").required = weekly;
+      }
       function overlaps(a, b) {
         return toMin(a.start) < toMin(b.end) && toMin(a.end) > toMin(b.start);
       }
@@ -1143,22 +1205,36 @@
       }
       function openActivity(activity = null) {
         editingActivity = activity?.id || null;
+        const groupId = activity ? activityGroupId(activity) : null;
+        const group = groupId
+          ? activities
+              .filter((item) => activityGroupId(item) === groupId)
+              .sort((a, b) => a.date.localeCompare(b.date))
+          : [];
+        const firstActivity = group[0] || activity;
+        const isSeries = group.length > 1;
         $("#activityForm").classList.toggle("editing", Boolean(activity));
         $("#activityModalTitle").textContent = activity
-          ? "编辑活动"
+          ? isSeries
+            ? "编辑每周活动"
+            : "编辑活动"
           : "添加活动";
         $("#activityForm").reset();
         const today = new Date();
         const currentWeekContainsToday =
           dateKey(today) >= dateKey(monday()) &&
           dateKey(today) <= dateKey(dayDate(6));
-        $("#activityTitle").value = activity?.title || "";
+        $("#activityTitle").value = firstActivity?.title || "";
         $("#activityDate").value =
-          activity?.date ||
+          firstActivity?.date ||
           (currentWeekContainsToday ? dateKey(today) : dateKey(dayDate(0)));
-        $("#activityStart").value = activity?.start || "09:00";
-        $("#activityEnd").value = activity?.end || "10:00";
-        $("#activityLocation").value = activity?.location || "";
+        $("#activityStart").value = firstActivity?.start || "09:00";
+        $("#activityEnd").value = firstActivity?.end || "10:00";
+        $("#activityLocation").value = firstActivity?.location || "";
+        $("#activityRepeat").value = isSeries ? "weekly" : "none";
+        $("#activityWeeks").value = isSeries ? group.length : 4;
+        $("#deleteActivity").textContent = isSeries ? "删除整组活动" : "删除";
+        toggleRepeatFields();
         $("#activityDialog").showModal();
         setTimeout(() => $("#activityTitle").focus(), 30);
       }
@@ -1203,6 +1279,7 @@
         if (event.target === $("#activityDialog")) closeActivity();
       };
       $("#activityEnd").oninput = () => $("#activityEnd").setCustomValidity("");
+      $("#activityRepeat").onchange = toggleRepeatFields;
       $("#activityForm").onsubmit = (event) => {
         event.preventDefault();
         const data = Object.fromEntries(new FormData(event.currentTarget));
@@ -1212,30 +1289,46 @@
           return;
         }
         $("#activityEnd").setCustomValidity("");
-        const record = {
-          id: editingActivity || String(Date.now()),
+        const repeatCount = data.repeat === "weekly" ? Number(data.weeks) : 1;
+        if (repeatCount < 1 || repeatCount > 52) {
+          $("#activityWeeks").reportValidity();
+          return;
+        }
+        const existing = activities.find(
+          (activity) => activity.id === editingActivity,
+        );
+        const previousGroupId = existing ? activityGroupId(existing) : null;
+        const seriesId =
+          repeatCount > 1
+            ? previousGroupId || `series-${Date.now()}`
+            : String(Date.now());
+        if (editingActivity) {
+          activities = activities.filter(
+            (activity) => activityGroupId(activity) !== previousGroupId,
+          );
+        }
+        const created = Array.from({ length: repeatCount }, (_, index) => ({
+          id: repeatCount > 1 ? `${seriesId}-${index}` : seriesId,
+          ...(repeatCount > 1 ? { seriesId } : {}),
           title: data.title.trim(),
-          date: data.date,
+          date: addWeeks(data.date, index),
           start: data.start,
           end: data.end,
           location: data.location.trim(),
-        };
-        if (editingActivity) {
-          const index = activities.findIndex(
-            (activity) => activity.id === editingActivity,
-          );
-          activities[index] = record;
-        } else {
-          activities.push(record);
-        }
+        }));
+        activities.push(...created);
         saveActivities();
-        weekOffset = weekOffsetForDate(record.date);
+        weekOffset = weekOffsetForDate(data.date);
         closeActivity();
         render();
       };
       $("#deleteActivity").onclick = () => {
+        const existing = activities.find(
+          (activity) => activity.id === editingActivity,
+        );
+        const groupId = existing ? activityGroupId(existing) : editingActivity;
         activities = activities.filter(
-          (activity) => activity.id !== editingActivity,
+          (activity) => activityGroupId(activity) !== groupId,
         );
         saveActivities();
         closeActivity();
