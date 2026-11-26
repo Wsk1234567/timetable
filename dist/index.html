@@ -164,6 +164,56 @@
         gap: 6px;
         white-space: nowrap;
       }
+      .sync-tools {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding-right: 8px;
+        margin-right: 2px;
+        border-right: 1px solid var(--line);
+      }
+      .sync-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .sync-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #9ca7b8;
+        flex: 0 0 auto;
+      }
+      .sync-btn[data-state="synced"] .sync-dot {
+        background: #2f9b78;
+      }
+      .sync-btn[data-state="syncing"] .sync-dot,
+      .sync-btn[data-state="connecting"] .sync-dot {
+        background: var(--blue);
+        box-shadow: 0 0 0 4px rgba(82, 109, 226, 0.14);
+      }
+      .sync-btn[data-state="offline"] .sync-dot,
+      .sync-btn[data-state="queued"] .sync-dot {
+        background: #d58b25;
+      }
+      .sync-btn[data-state="error"] .sync-dot,
+      .sync-btn[data-state="reconnect"] .sync-dot {
+        background: #c64e41;
+      }
+      .sheet-btn[hidden] {
+        display: none;
+      }
+      .sync-live {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
       .week-label {
         min-width: 132px;
         text-align: center;
@@ -631,6 +681,9 @@
           overflow-x: auto;
           padding-bottom: 2px;
         }
+        .sync-tools {
+          padding-right: 6px;
+        }
         .legend {
           width: 100%;
         }
@@ -712,6 +765,19 @@
       <div class="controls">
         <div class="legend" id="legend"></div>
         <div class="schedule-tools">
+          <div class="sync-tools">
+            <button
+              class="tool-btn sync-btn"
+              id="syncButton"
+              data-state="local"
+            >
+              <span class="sync-dot" aria-hidden="true"></span>
+              <span id="syncLabel">连接 Google</span>
+            </button>
+            <button class="tool-btn sheet-btn" id="sheetButton" hidden>
+              打开 Sheet
+            </button>
+          </div>
           <button class="tool-btn" id="prevWeek" aria-label="上一周">‹</button>
           <strong class="week-label" id="weekLabel"></strong>
           <button class="tool-btn" id="nextWeek" aria-label="下一周">›</button>
@@ -724,6 +790,7 @@
           <div class="schedule" id="schedule"></div>
         </div>
       </section>
+      <div class="sync-live" id="syncLive" aria-live="polite"></div>
     </main>
     <dialog id="detailDialog">
       <div class="modal">
@@ -861,6 +928,9 @@
         </div>
       </form>
     </dialog>
+    <script src="config.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="google-sync.js"></script>
     <script>
       const DAYS = [
         "Monday",
@@ -1018,6 +1088,7 @@
       let selected = "ALL";
       let weekOffset = 0;
       let editingActivity = null;
+      let cloudSync = null;
       let activities = JSON.parse(
         localStorage.getItem("my-timetable-activities") || "[]",
       );
@@ -1052,6 +1123,25 @@
           "my-timetable-activities",
           JSON.stringify(activities),
         );
+      }
+      function updateSyncUi(status) {
+        const labels = {
+          unconfigured: "Google 未设置",
+          local: status.pending ? `待同步 ${status.pending}` : "连接 Google",
+          connecting: "连接中",
+          syncing: "同步中",
+          synced: "已同步",
+          queued: `待同步 ${status.pending}`,
+          offline: status.pending ? `离线 · ${status.pending}` : "离线",
+          reconnect: "重新连接",
+          error: "同步失败",
+        };
+        $("#syncButton").dataset.state = status.state;
+        $("#syncLabel").textContent = labels[status.state] || "连接 Google";
+        $("#syncButton").title = status.message || labels[status.state] || "";
+        $("#sheetButton").hidden = !status.sheetId;
+        $("#syncLive").textContent =
+          status.message || labels[status.state] || "";
       }
       function activityGroupId(activity) {
         return activity.seriesId || activity.id;
@@ -1298,6 +1388,11 @@
           (activity) => activity.id === editingActivity,
         );
         const previousGroupId = existing ? activityGroupId(existing) : null;
+        const removed = previousGroupId
+          ? activities.filter(
+              (activity) => activityGroupId(activity) === previousGroupId,
+            )
+          : [];
         const seriesId =
           repeatCount > 1
             ? previousGroupId || `series-${Date.now()}`
@@ -1318,6 +1413,7 @@
         }));
         activities.push(...created);
         saveActivities();
+        cloudSync?.enqueue({ upserts: created, deletes: removed });
         weekOffset = weekOffsetForDate(data.date);
         closeActivity();
         render();
@@ -1327,16 +1423,35 @@
           (activity) => activity.id === editingActivity,
         );
         const groupId = existing ? activityGroupId(existing) : editingActivity;
+        const removed = activities.filter(
+          (activity) => activityGroupId(activity) === groupId,
+        );
         activities = activities.filter(
           (activity) => activityGroupId(activity) !== groupId,
         );
         saveActivities();
+        cloudSync?.enqueue({ deletes: removed });
         closeActivity();
         render();
       };
       renderLegend();
       render();
       nextClass();
+      cloudSync = GoogleTimetableSync.create({
+        getActivities: () => activities,
+        setActivities: (nextActivities) => {
+          activities = nextActivities;
+          saveActivities();
+          render();
+        },
+        onStatus: updateSyncUi,
+      });
+      cloudSync.init();
+      $("#syncButton").onclick = () => {
+        if (cloudSync.isConnected()) cloudSync.sync();
+        else cloudSync.connect();
+      };
+      $("#sheetButton").onclick = () => cloudSync.openSheet();
       let resizeFrame;
       window.addEventListener("resize", () => {
         cancelAnimationFrame(resizeFrame);
