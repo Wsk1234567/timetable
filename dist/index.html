@@ -133,9 +133,31 @@
       }
       .legend {
         display: flex;
+        align-items: center;
         gap: 7px;
         overflow: auto;
         padding: 3px;
+      }
+      .activity-filter {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+        border-left: 1px solid var(--line);
+        padding-left: 10px;
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-weight: 700;
+      }
+      .activity-filter select {
+        min-height: 31px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 28px 4px 10px;
+        background: var(--paper);
+        color: var(--ink);
+        font: inherit;
+        cursor: pointer;
       }
       .chip {
         border: 1px solid var(--line);
@@ -480,6 +502,46 @@
         font-size: 0.62rem;
         color: #87524a;
       }
+      .activity-card.category-study {
+        background: #eee7ff;
+        border-color: #9b72d4;
+        border-left-color: #8555c1;
+      }
+      .activity-card.category-study span {
+        color: #654885;
+      }
+      .activity-card.category-assignment {
+        background: #fff0cf;
+        border-color: #d99a2b;
+        border-left-color: #c67d06;
+      }
+      .activity-card.category-assignment span {
+        color: #7f5a1a;
+      }
+      .activity-card.category-exam {
+        background: #ffe2e7;
+        border-color: #df6578;
+        border-left-color: #c73e56;
+      }
+      .activity-card.category-exam span {
+        color: #854552;
+      }
+      .activity-card.category-club {
+        background: #def3e8;
+        border-color: #4aa077;
+        border-left-color: #2f8761;
+      }
+      .activity-card.category-club span {
+        color: #39745b;
+      }
+      .activity-card.category-personal {
+        background: #ffe5df;
+        border-color: #e07061;
+        border-left-color: #e35f4d;
+      }
+      .mobile-viewbar {
+        display: none;
+      }
       .fit-tight .activity-card {
         padding: 3px 5px;
       }
@@ -687,6 +749,54 @@
         .legend {
           width: 100%;
         }
+        .activity-filter {
+          position: sticky;
+          right: 0;
+          background: var(--bg);
+          padding-right: 3px;
+        }
+        .mobile-viewbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 7px;
+        }
+        .view-switch,
+        .mobile-day-picker {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          padding: 3px;
+          border: 1px solid var(--line);
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.72);
+        }
+        .view-switch button,
+        .mobile-day-picker button {
+          min-width: 34px;
+          min-height: 30px;
+          border: 0;
+          border-radius: 7px;
+          background: transparent;
+          color: var(--muted);
+          font-size: 0.74rem;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .view-switch button.active,
+        .mobile-day-picker button.active {
+          background: var(--navy);
+          color: #fff;
+          box-shadow: 0 3px 8px rgba(35, 55, 96, 0.18);
+        }
+        .mobile-day-picker {
+          overflow-x: auto;
+        }
+        .mobile-day-picker button {
+          min-width: 29px;
+          padding: 0;
+        }
         .hint {
           white-space: normal;
         }
@@ -695,7 +805,22 @@
           min-height: 520px;
         }
         .schedule {
+          grid-template-columns: 75px repeat(
+              var(--visible-days),
+              minmax(105px, 1fr)
+            );
+          min-width: calc(75px + var(--visible-days) * 105px);
+        }
+        .schedule.view-day {
+          grid-template-columns: 75px minmax(220px, 1fr);
+          min-width: 100%;
+        }
+        .schedule.view-three {
+          min-width: 435px;
+        }
+        .schedule.view-week {
           grid-template-columns: 75px repeat(7, 165px);
+          min-width: 1230px;
         }
         .corner {
           width: 75px;
@@ -785,6 +910,14 @@
           <button class="tool-btn add" id="addActivity">＋ 添加活动</button>
         </div>
       </div>
+      <div class="mobile-viewbar" aria-label="手机时间表显示范围">
+        <div class="view-switch" id="viewSwitch">
+          <button type="button" data-view="day">日</button>
+          <button type="button" data-view="three">3日</button>
+          <button type="button" data-view="week">周</button>
+        </div>
+        <div class="mobile-day-picker" id="mobileDayPicker"></div>
+      </div>
       <section class="schedule-wrap" aria-label="每周课程时间表">
         <div class="scroll" id="scroll">
           <div class="schedule" id="schedule"></div>
@@ -860,6 +993,16 @@
           <div class="field full">
             <label for="activityDate">日期</label>
             <input id="activityDate" name="date" type="date" required />
+          </div>
+          <div class="field full">
+            <label for="activityCategory">活动类别</label>
+            <select id="activityCategory" name="category">
+              <option value="study">复习</option>
+              <option value="assignment">作业</option>
+              <option value="exam">考试</option>
+              <option value="club">社团</option>
+              <option value="personal" selected>个人</option>
+            </select>
           </div>
           <div class="field">
             <label for="activityRepeat">重复</label>
@@ -941,6 +1084,14 @@
         "Saturday",
         "Sunday",
       ];
+      const SHORT_DAYS = ["一", "二", "三", "四", "五", "六", "日"];
+      const ACTIVITY_CATEGORIES = {
+        study: "复习",
+        assignment: "作业",
+        exam: "考试",
+        club: "社团",
+        personal: "个人",
+      };
       const courses = {
         CS6214: {
           fullCode: "C CS6214",
@@ -1086,12 +1237,22 @@
         },
       ];
       let selected = "ALL";
+      let activityCategoryFilter = "ALL";
       let weekOffset = 0;
+      let mobileView =
+        localStorage.getItem("my-timetable-mobile-view") || "three";
+      if (!["day", "three", "week"].includes(mobileView)) mobileView = "three";
+      let mobileDay = (new Date().getDay() + 6) % 7;
       let editingActivity = null;
       let cloudSync = null;
       let activities = JSON.parse(
         localStorage.getItem("my-timetable-activities") || "[]",
-      );
+      ).map((activity) => ({
+        ...activity,
+        category: ACTIVITY_CATEGORIES[activity.category]
+          ? activity.category
+          : "personal",
+      }));
       const $ = (s) => document.querySelector(s),
         toMin = (t) => {
           const [h, m] = t.split(":").map(Number);
@@ -1167,12 +1328,23 @@
       }
       function renderLegend() {
         const keys = ["ALL", ...Object.keys(courses)];
-        $("#legend").innerHTML = keys
+        const categoryOptions = [
+          ["ALL", "全部活动"],
+          ...Object.entries(ACTIVITY_CATEGORIES),
+        ]
           .map(
-            (k) =>
-              `<button class="chip ${selected === k ? "active" : ""}" data-course="${k}">${k === "ALL" ? "全部课程" : courses[k].fullCode}</button>`,
+            ([value, label]) =>
+              `<option value="${value}" ${activityCategoryFilter === value ? "selected" : ""}>${label}</option>`,
           )
           .join("");
+        $("#legend").innerHTML =
+          keys
+            .map(
+              (k) =>
+                `<button class="chip ${selected === k ? "active" : ""}" data-course="${k}">${k === "ALL" ? "全部课程" : courses[k].fullCode}</button>`,
+            )
+            .join("") +
+          `<label class="activity-filter"><span>活动</span><select id="activityFilter" aria-label="筛选活动类别">${categoryOptions}</select></label>`;
         document.querySelectorAll(".chip").forEach(
           (b) =>
             (b.onclick = () => {
@@ -1181,13 +1353,50 @@
               render();
             }),
         );
+        $("#activityFilter").onchange = (event) => {
+          activityCategoryFilter = event.target.value;
+          render();
+        };
+      }
+      function currentView() {
+        return window.innerWidth <= 800 ? mobileView : "week";
+      }
+      function visibleDays() {
+        if (currentView() === "day") return [mobileDay];
+        if (currentView() === "three") {
+          const start = Math.min(mobileDay, 4);
+          return [start, start + 1, start + 2];
+        }
+        return [0, 1, 2, 3, 4, 5, 6];
+      }
+      function renderMobileControls() {
+        document.querySelectorAll("#viewSwitch button").forEach((button) => {
+          button.classList.toggle("active", button.dataset.view === mobileView);
+          button.setAttribute(
+            "aria-pressed",
+            String(button.dataset.view === mobileView),
+          );
+        });
+        $("#mobileDayPicker").innerHTML = SHORT_DAYS.map(
+          (day, index) =>
+            `<button type="button" data-day="${index}" class="${mobileDay === index ? "active" : ""}" aria-label="${DAYS[index]}">${day}</button>`,
+        ).join("");
+        document.querySelectorAll("#mobileDayPicker button").forEach(
+          (button) =>
+            (button.onclick = () => {
+              mobileDay = Number(button.dataset.day);
+              render();
+            }),
+        );
       }
       function render() {
         const now = new Date();
-        const weekStart = monday();
-        const weekEnd = dayDate(6);
+        const daysToRender = visibleDays();
+        const weekStart = dayDate(daysToRender[0]);
+        const weekEnd = dayDate(daysToRender.at(-1));
         $("#weekLabel").textContent =
           `${formatDay(weekStart)}–${formatDay(weekEnd)}, ${weekEnd.getFullYear()}`;
+        renderMobileControls();
         const availableHeight =
           $("#scroll").clientHeight || window.innerHeight - 142;
         const hourHeight =
@@ -1198,11 +1407,14 @@
         document.body.classList.toggle("fit-tight", hourHeight < 30);
         let html =
           '<div class="corner">TIME</div>' +
-          DAYS.map((day, index) => {
-            const date = dayDate(index);
-            const isToday = dateKey(date) === dateKey(now);
-            return `<div class="day-head ${isToday ? "today" : ""}"><span>${formatDay(date)}</span><strong>${day}</strong></div>`;
-          }).join("");
+          daysToRender
+            .map((index) => {
+              const day = DAYS[index];
+              const date = dayDate(index);
+              const isToday = dateKey(date) === dateKey(now);
+              return `<div class="day-head ${isToday ? "today" : ""}"><span>${formatDay(date)}</span><strong>${day}</strong></div>`;
+            })
+            .join("");
         html +=
           '<div class="time-col" style="height:calc(19 * var(--hour))">' +
           Array.from(
@@ -1211,11 +1423,14 @@
               `<span class="time" style="top:${i * hourHeight}px">${String((i + 5) % 24).padStart(2, "0")}:00</span>`,
           ).join("") +
           "</div>";
-        for (let day = 0; day < 7; day++) {
+        for (const day of daysToRender) {
           const list = classes.filter((courseClass) => courseClass.day === day);
           const currentDate = dayDate(day);
           const dateActivities = activities.filter(
-            (activity) => activity.date === dateKey(currentDate),
+            (activity) =>
+              activity.date === dateKey(currentDate) &&
+              (activityCategoryFilter === "ALL" ||
+                activity.category === activityCategoryFilter),
           );
           html += `<div class="day-col" style="height:calc(19 * var(--hour))">${list.length || dateActivities.length ? "" : '<span class="empty">No class</span>'}`;
           for (const courseClass of list) {
@@ -1244,7 +1459,10 @@
             const location = activity.location
               ? ` · ${escapeHtml(activity.location)}`
               : "";
-            html += `<button class="activity-card" data-activity-id="${activity.id}" aria-label="${escapeHtml(activity.title)}, ${activity.start}–${activity.end}${location}" style="top:${top}px;height:${height}px;left:${sharesTime ? "52%" : "7px"};right:7px"><strong>${escapeHtml(activity.title)}</strong><span>${activity.start}–${activity.end}${location}</span></button>`;
+            const category = ACTIVITY_CATEGORIES[activity.category]
+              ? activity.category
+              : "personal";
+            html += `<button class="activity-card category-${category}" data-activity-id="${activity.id}" aria-label="${escapeHtml(activity.title)}, ${ACTIVITY_CATEGORIES[category]}, ${activity.start}–${activity.end}${location}" style="top:${top}px;height:${height}px;left:${sharesTime ? "52%" : "7px"};right:7px"><strong>${escapeHtml(activity.title)}</strong><span>${ACTIVITY_CATEGORIES[category]} · ${activity.start}–${activity.end}${location}</span></button>`;
           }
           if (dateKey(currentDate) === dateKey(now) && now.getHours() >= 5) {
             const top =
@@ -1254,6 +1472,8 @@
           }
           html += "</div>";
         }
+        $("#schedule").className = `schedule view-${currentView()}`;
+        $("#schedule").style.setProperty("--visible-days", daysToRender.length);
         $("#schedule").innerHTML = html;
         document
           .querySelectorAll(".class-card")
@@ -1321,6 +1541,7 @@
         $("#activityStart").value = firstActivity?.start || "09:00";
         $("#activityEnd").value = firstActivity?.end || "10:00";
         $("#activityLocation").value = firstActivity?.location || "";
+        $("#activityCategory").value = firstActivity?.category || "personal";
         $("#activityRepeat").value = isSeries ? "weekly" : "none";
         $("#activityWeeks").value = isSeries ? group.length : 4;
         $("#deleteActivity").textContent = isSeries ? "删除整组活动" : "删除";
@@ -1360,8 +1581,17 @@
       };
       $("#todayWeek").onclick = () => {
         weekOffset = 0;
+        mobileDay = (new Date().getDay() + 6) % 7;
         render();
       };
+      document.querySelectorAll("#viewSwitch button").forEach(
+        (button) =>
+          (button.onclick = () => {
+            mobileView = button.dataset.view;
+            localStorage.setItem("my-timetable-mobile-view", mobileView);
+            render();
+          }),
+      );
       $("#addActivity").onclick = () => openActivity();
       $("#closeActivity").onclick = closeActivity;
       $("#cancelActivity").onclick = closeActivity;
@@ -1410,6 +1640,9 @@
           start: data.start,
           end: data.end,
           location: data.location.trim(),
+          category: ACTIVITY_CATEGORIES[data.category]
+            ? data.category
+            : "personal",
         }));
         activities.push(...created);
         saveActivities();
@@ -1440,7 +1673,12 @@
       cloudSync = GoogleTimetableSync.create({
         getActivities: () => activities,
         setActivities: (nextActivities) => {
-          activities = nextActivities;
+          activities = nextActivities.map((activity) => ({
+            ...activity,
+            category: ACTIVITY_CATEGORIES[activity.category]
+              ? activity.category
+              : "personal",
+          }));
           saveActivities();
           render();
         },

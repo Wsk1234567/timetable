@@ -18,6 +18,7 @@
     "action",
     "updated_at",
     "device_id",
+    "category",
   ];
   const SCOPES = [
     "https://www.googleapis.com/auth/drive.file",
@@ -57,6 +58,7 @@
       action,
       new Date().toISOString(),
       deviceId,
+      action === "delete" ? "" : activity.category || "personal",
     ];
   }
 
@@ -76,6 +78,7 @@
         start: row[5] || "09:00",
         end: row[6] || "10:00",
         location: row[7] || "",
+        category: row[11] || "personal",
       }))
       .filter((activity) => /^\d{4}-\d{2}-\d{2}$/.test(activity.date))
       .sort(
@@ -222,7 +225,7 @@
         },
       );
       await api(
-        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(`'${SHEET_NAME}'!A1:K1`)}?valueInputOption=RAW`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(`'${SHEET_NAME}'!A1:L1`)}?valueInputOption=RAW`,
         {
           method: "PUT",
           body: JSON.stringify({ values: [HEADERS] }),
@@ -286,7 +289,7 @@
     }
 
     async function readRows() {
-      const range = encodeURIComponent(`'${SHEET_NAME}'!A:K`);
+      const range = encodeURIComponent(`'${SHEET_NAME}'!A:L`);
       const data = await api(
         `https://sheets.googleapis.com/v4/spreadsheets/${meta.sheetId}/values/${range}?majorDimension=ROWS`,
       );
@@ -296,7 +299,7 @@
     async function appendPending() {
       if (!meta.pending.length) return;
       const pending = [...meta.pending];
-      const range = encodeURIComponent(`'${SHEET_NAME}'!A:K`);
+      const range = encodeURIComponent(`'${SHEET_NAME}'!A:L`);
       await api(
         `https://sheets.googleapis.com/v4/spreadsheets/${meta.sheetId}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
         {
